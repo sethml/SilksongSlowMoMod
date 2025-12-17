@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <OutputPath>bin\$(Configuration)\</OutputPath>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <BepInExPluginGuid>com.ofb.slowmo</BepInExPluginGuid>
+    <BepInExPluginName>OFBSlowMo</BepInExPluginName>
+    <BepInExPluginVersion>1.0.0</BepInExPluginVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BepInEx.Analyzers" Version="1.0.8">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="BepInEx.Core" Version="5.4.21" />
+    <PackageReference Include="BepInEx.PluginInfoProps" Version="1.1.0" />
+    <PackageReference Include="UnityEngine.Modules" Version="2019.4.40" />
+  </ItemGroup>
+
+  <!-- Unity references - these will be resolved from the game directory at runtime -->
+  <!-- If you need to reference game-specific assemblies, uncomment and set GamePath -->
+  <!--
+  <PropertyGroup>
+    <GamePath>C:\Path\To\Hollow Knight Silksong</GamePath>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="Assembly-CSharp">
+      <HintPath>$(GamePath)\HollowKnightSilksong_Data\Managed\Assembly-CSharp.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+  </ItemGroup>
+  -->
+
+</Project>
+
