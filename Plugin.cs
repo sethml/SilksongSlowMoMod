@@ -10,9 +10,15 @@ namespace OFBSlowMo
         private ConfigEntry<KeyCode> slowMoKey = null!;
         private ConfigEntry<float> slowMoSpeed = null!;
         private ConfigEntry<bool> toggleMode = null!;
+        private ConfigEntry<KeyCode> increaseSlowMoKey = null!;
+        private ConfigEntry<KeyCode> decreaseSlowMoKey = null!;
         
         private bool isSlowMoActive = false;
         private float normalTimeScale = 1.0f;
+
+        private bool flashRed = false;
+        private float flashTimer = 0f;
+        private const float FlashDuration = 0.5f;
 
         private void Awake()
         {
@@ -23,27 +29,51 @@ namespace OFBSlowMo
             slowMoKey = Config.Bind(
                 "General",
                 "SlowMoKey",
-                KeyCode.LeftShift,
+                KeyCode.RightShift,
                 "Key to press to activate slow motion"
             );
 
             slowMoSpeed = Config.Bind(
                 "General",
                 "SlowMoSpeed",
-                0.3f,
+                0.5f,
                 "Time scale when slow motion is active (0.1 = 10% speed, 0.5 = 50% speed, etc.)"
             );
 
             toggleMode = Config.Bind(
                 "General",
                 "ToggleMode",
-                false,
+                true,
                 "If true, slow motion toggles on/off. If false, hold key to activate."
+            );
+
+            increaseSlowMoKey = Config.Bind(
+                "General",
+                "IncreaseSlowMoKey",
+                KeyCode.Equals,
+                "Key to increase slow motion speed by 10%"
+            );
+
+            decreaseSlowMoKey = Config.Bind(
+                "General",
+                "DecreaseSlowMoKey",
+                KeyCode.Minus,
+                "Key to decrease slow motion speed by 10%"
             );
         }
 
         private void Update()
         {
+            // Adjust slow-mo speed with +/- keys
+            if (Input.GetKeyDown(increaseSlowMoKey.Value))
+            {
+                slowMoSpeed.Value = Mathf.Clamp01(slowMoSpeed.Value + 0.1f);
+            }
+            else if (Input.GetKeyDown(decreaseSlowMoKey.Value))
+            {
+                slowMoSpeed.Value = Mathf.Clamp01(slowMoSpeed.Value - 0.1f);
+            }
+
             if (toggleMode.Value)
             {
                 // Toggle mode: press key to toggle slow motion on/off
@@ -76,10 +106,28 @@ namespace OFBSlowMo
                     RestoreNormalSpeed();
                 }
             }
+
+            // Flash timer countdown (use unscaled time so it isn't affected by slow-mo)
+            if (flashRed)
+            {
+                flashTimer -= Time.unscaledDeltaTime;
+                if (flashTimer <= 0f)
+                {
+                    flashRed = false;
+                    flashTimer = 0f;
+                }
+            }
             
             // Continuously enforce timeScale every frame to prevent game from resetting it
             if (isSlowMoActive)
             {
+                // Detect if something else changed timeScale
+                if (Mathf.Abs(Time.timeScale - slowMoSpeed.Value) > 0.0001f)
+                {
+                    flashRed = true;
+                    flashTimer = FlashDuration;
+                }
+
                 Time.timeScale = slowMoSpeed.Value;
             }
         }
@@ -114,7 +162,7 @@ namespace OFBSlowMo
                 GUIStyle textStyle = new GUIStyle(GUI.skin.label);
                 textStyle.fontSize = 48;
                 textStyle.fontStyle = FontStyle.Bold;
-                textStyle.normal.textColor = Color.white;
+                textStyle.normal.textColor = flashRed ? Color.red : Color.white;
                 textStyle.alignment = TextAnchor.MiddleLeft;
                 if (fancyFont != null)
                 {
