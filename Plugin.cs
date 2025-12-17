@@ -10,24 +10,20 @@ namespace OFBSlowMo
     {
         private ConfigEntry<KeyCode> slowMoKey = null!;
         private ConfigEntry<float> slowMoSpeed = null!;
-        private ConfigEntry<bool> toggleMode = null!;
+        // toggleMode removed
         private ConfigEntry<KeyCode> increaseSlowMoKey = null!;
         private ConfigEntry<KeyCode> decreaseSlowMoKey = null!;
-        private ConfigEntry<string> fontNamesConfig = null!;
         
         private bool isSlowMoActive = false;
         private float normalTimeScale = 1.0f;
 
-        private bool flashRed = false;
-        private float flashTimer = 0f;
-        private const float FlashDuration = 0.5f;
-
         private float previewTimer = 0f;
         private const float PreviewDuration = 0.5f;
 
-        private Font? hudFont = null;
-        private bool hudFontInitialized = false;
-        private string? hudFontName = null;
+        private Font? trajanFont = null;
+        private bool trajanSearchAttempted = false;
+
+        private float logTimer = 0f;
 
         // 1 / sqrt(sqrt(2)) ≈ 0.84089642
         private const float SpeedScale = 0.84089642f;
@@ -52,12 +48,7 @@ namespace OFBSlowMo
                 "Time scale when slow motion is active (0.1 = 10% speed, 0.5 = 50% speed, etc.)"
             );
 
-            toggleMode = Config.Bind(
-                "General",
-                "ToggleMode",
-                true,
-                "If true, slow motion toggles on/off. If false, hold key to activate."
-            );
+            // toggleMode config removed
 
             increaseSlowMoKey = Config.Bind(
                 "General",
@@ -72,17 +63,25 @@ namespace OFBSlowMo
                 KeyCode.Minus,
                 "Key to decrease slow motion speed by 10%"
             );
+        }
 
-            fontNamesConfig = Config.Bind(
-                "Visual",
-                "FontNames",
-                "BlackChancery, Old English Text MT, GothicE, UnifrakturMaguntia, Hoefler Text, Palatino Linotype, Book Antiqua, Georgia, Times New Roman",
-                "Comma-separated list of font names to try for the HUD text (first available font is used)."
-            );
+        // Property to determine if the mod should currently control the time scale.
+        // It is true functionality if we are active AND the game is not trying to pause or run slower than us.
+        private bool IsModInCharge
+        {
+            get
+            {
+                // We use a small epsilon to avoid floating point issues.
+                // If the game's timeScale is significantly lower than our target (e.g. 0), we are NOT in charge.
+                return isSlowMoActive && Time.timeScale >= slowMoSpeed.Value - 0.005f;
+            }
         }
 
         private void Update()
         {
+            // Capture state BEFORE mutation to avoid regression where increasing speed makes IsModInCharge false
+            bool wasInCharge = IsModInCharge;
+
             // Adjust slow-mo speed with +/- keys (scale by 1/sqrt(2))
             if (Input.GetKeyDown(increaseSlowMoKey.Value))
             {
@@ -93,6 +92,10 @@ namespace OFBSlowMo
                 if (!isSlowMoActive)
                 {
                     previewTimer = PreviewDuration;
+                }
+                else if (wasInCharge)
+                {
+                    ApplySlowMotion();
                 }
             }
             else if (Input.GetKeyDown(decreaseSlowMoKey.Value))
@@ -105,14 +108,23 @@ namespace OFBSlowMo
                 {
                     previewTimer = PreviewDuration;
                 }
+                else if (wasInCharge)
+                {
+                    ApplySlowMotion();
+                }
             }
 
-            if (toggleMode.Value)
+            if (Input.GetKeyDown(slowMoKey.Value))
             {
-                // Toggle mode: press key to toggle slow motion on/off
-                if (Input.GetKeyDown(slowMoKey.Value))
+                isSlowMoActive = !isSlowMoActive;
+                
+                // We should apply/restore speed if:
+                // 1. We were already in charge (toggling OFF or changing speed while active)
+                // 2. We just turned ON and the game isn't paused (initial activation)
+                bool shouldApplyImmediately = wasInCharge || (isSlowMoActive && Time.timeScale >= slowMoSpeed.Value - 0.005f);
+
+                if (shouldApplyImmediately)
                 {
-                    isSlowMoActive = !isSlowMoActive;
                     if (isSlowMoActive)
                     {
                         ApplySlowMotion();
@@ -121,33 +133,6 @@ namespace OFBSlowMo
                     {
                         RestoreNormalSpeed();
                     }
-                }
-            }
-            else
-            {
-                // Hold mode: hold key to activate slow motion
-                bool keyPressed = Input.GetKey(slowMoKey.Value);
-                
-                if (keyPressed && !isSlowMoActive)
-                {
-                    isSlowMoActive = true;
-                    ApplySlowMotion();
-                }
-                else if (!keyPressed && isSlowMoActive)
-                {
-                    isSlowMoActive = false;
-                    RestoreNormalSpeed();
-                }
-            }
-
-            // Flash timer countdown (use unscaled time so it isn't affected by slow-mo)
-            if (flashRed)
-            {
-                flashTimer -= Time.unscaledDeltaTime;
-                if (flashTimer <= 0f)
-                {
-                    flashRed = false;
-                    flashTimer = 0f;
                 }
             }
 
@@ -162,23 +147,42 @@ namespace OFBSlowMo
             }
             
             // Continuously enforce timeScale every frame to prevent game from resetting it
-            if (isSlowMoActive)
+            // Only enforce if we are in charge.
+            if (IsModInCharge)
             {
-                // Detect if something else changed timeScale
-                if (Mathf.Abs(Time.timeScale - slowMoSpeed.Value) > 0.0001f)
+                // Only clamp down if the current timeScale is HIGHER than our target.
+                if (Time.timeScale > slowMoSpeed.Value + 0.0001f)
                 {
-                    Logger.LogWarning($"OFBSlowMo: Detected external timeScale change to {Time.timeScale} from {slowMoSpeed.Value}.");
-                    flashRed = true;
-                    flashTimer = FlashDuration;
+                    Logger.LogWarning($"OFBSlowMo: Detected external timeScale change to {Time.timeScale} from {slowMoSpeed.Value}. Clamping down.");
+                    Time.timeScale = slowMoSpeed.Value;
                 }
+            }
 
-                Time.timeScale = slowMoSpeed.Value;
+            // Logging (1Hz)
+            logTimer += Time.unscaledDeltaTime;
+            if (logTimer >= 1.0f)
+            {
+                logTimer = 0f;
+                Logger.LogInfo($"OFBSlowMo: Current timeScale = {Time.timeScale}");
             }
         }
 
         private void ApplySlowMotion()
         {
-            normalTimeScale = Time.timeScale;
+            // Heuristic fix: if we are ALREADY (approximately) at the slow-mo speed, 
+            // it means we probably just toggled off and on quickly, or something else set it.
+            // In this case, do NOT capture the current timeScale as "normal", because that would lock us in slow-mo.
+            // Default to 1.0f for safety.
+            if (Mathf.Abs(Time.timeScale - slowMoSpeed.Value) < 0.05f)
+            {
+                normalTimeScale = 1.0f;
+                Logger.LogWarning($"OFBSlowMo: Detected current timeScale ({Time.timeScale}) is close to target ({slowMoSpeed.Value}). Defaulting normalTimeScale to 1.0.");
+            }
+            else
+            {
+                normalTimeScale = Time.timeScale;
+            }
+            
             Time.timeScale = slowMoSpeed.Value;
             Logger.LogInfo($"Slow motion activated: {slowMoSpeed.Value}x speed");
         }
@@ -187,77 +191,6 @@ namespace OFBSlowMo
         {
             Time.timeScale = normalTimeScale;
             Logger.LogInfo("Normal speed restored");
-        }
-
-        private void InitializeHudFontIfNeeded()
-        {
-            if (hudFontInitialized)
-                return;
-
-            hudFontInitialized = true;
-            hudFont = null;
-
-            if (string.IsNullOrWhiteSpace(fontNamesConfig.Value))
-            {
-                Logger.LogInfo("OFBSlowMo: FontNames config is empty; using default GUI font.");
-                return;
-            }
-
-            // Get OS-installed font names once and intersect with the configured list.
-            string[] osFonts;
-            try
-            {
-                osFonts = Font.GetOSInstalledFontNames();
-            }
-            catch (Exception ex)
-            {
-                Logger.LogWarning($"OFBSlowMo: Failed to query OS fonts: {ex.Message}. Falling back to default GUI font.");
-                return;
-            }
-
-            string[] requestedNames = fontNamesConfig.Value.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
-            var validNames = new System.Collections.Generic.List<string>();
-
-            foreach (string rawName in requestedNames)
-            {
-                string requested = rawName.Trim();
-                if (string.IsNullOrEmpty(requested))
-                    continue;
-
-                foreach (string osName in osFonts)
-                {
-                    if (string.Equals(osName, requested, StringComparison.OrdinalIgnoreCase))
-                    {
-                        validNames.Add(osName);
-                        break;
-                    }
-                }
-            }
-
-            if (validNames.Count == 0)
-            {
-                Logger.LogWarning($"OFBSlowMo: None of the FontNames '{fontNamesConfig.Value}' matched OS-installed fonts. Using default GUI font.");
-                return;
-            }
-
-            try
-            {
-                // Let Unity pick from the validated list only.
-                hudFont = Font.CreateDynamicFontFromOSFont(validNames.ToArray(), 48);
-                if (hudFont != null)
-                {
-                    hudFontName = hudFont.name;
-                    Logger.LogInfo($"OFBSlowMo: Using HUD font '{hudFontName}' from validated list: {string.Join(", ", validNames)}.");
-                }
-                else
-                {
-                    Logger.LogWarning("OFBSlowMo: Font.CreateDynamicFontFromOSFont returned null for validated font list. Using default GUI font.");
-                }
-            }
-            catch (Exception ex)
-            {
-                Logger.LogWarning($"OFBSlowMo: Exception while creating HUD font from validated list: {ex.Message}. Using default GUI font.");
-            }
         }
 
         private void OnGUI()
@@ -273,19 +206,55 @@ namespace OFBSlowMo
                 GUI.depth = -100;
                 GUI.matrix = Matrix4x4.identity;
 
-                // Ensure HUD font resolved once
-                InitializeHudFontIfNeeded();
+                // Try to find Trajan font if we haven't found it yet
+                if (trajanFont == null && !trajanSearchAttempted)
+                {
+                    trajanSearchAttempted = true;
+                    // Look for loaded fonts named "Trajan..."
+                    // We use FindObjectsOfTypeAll to catch assets even if they aren't currently active in the scene,
+                    // as long as they are loaded in memory.
+                    var fonts = Resources.FindObjectsOfTypeAll<Font>();
+                    Font? bestCandidate = null;
+
+                    foreach (var f in fonts)
+                    {
+                        if (f.name.IndexOf("Trajan", StringComparison.OrdinalIgnoreCase) >= 0)
+                        {
+                            // If we haven't found a candidate yet, take this one
+                            if (bestCandidate == null)
+                            {
+                                bestCandidate = f;
+                            }
+                            // If this new one is NOT bold and the current best IS bold, switch to this one
+                            else if (bestCandidate.name.IndexOf("Bold", StringComparison.OrdinalIgnoreCase) >= 0 
+                                     && f.name.IndexOf("Bold", StringComparison.OrdinalIgnoreCase) < 0)
+                            {
+                                bestCandidate = f;
+                            }
+                        }
+                    }
+
+                    if (bestCandidate != null)
+                    {
+                        trajanFont = bestCandidate;
+                        Logger.LogInfo($"OFBSlowMo: Found Trajan font: {trajanFont.name}");
+                    }
+                    else
+                    {
+                        Logger.LogWarning("OFBSlowMo: Could not find any font named 'Trajan' in Resources. Using default font.");
+                    }
+                }
                 
                 // Style for the text with shadow effect
                 GUIStyle textStyle = new GUIStyle(GUI.skin.label);
                 textStyle.fontSize = 48;
                 textStyle.fontStyle = FontStyle.Bold;
 
-                // Base color: red/white when active, green fade when previewing
+                // Base color: white when active, green fade when previewing
                 Color baseColor;
                 if (isSlowMoActive)
                 {
-                    baseColor = flashRed ? Color.red : Color.white;
+                    baseColor = Color.white;
                 }
                 else
                 {
@@ -296,9 +265,9 @@ namespace OFBSlowMo
 
                 textStyle.normal.textColor = baseColor;
                 textStyle.alignment = TextAnchor.MiddleLeft;
-                if (hudFont != null)
+                if (trajanFont != null)
                 {
-                    textStyle.font = hudFont;
+                    textStyle.font = trajanFont;
                 }
                 
                 // Calculate position (lower-left corner with padding)
