@@ -27,6 +27,7 @@ namespace OFBSlowMo
 
         private Font? hudFont = null;
         private bool hudFontInitialized = false;
+        private string? hudFontName = null;
 
         // 1 / sqrt(sqrt(2)) ≈ 0.84089642
         private const float SpeedScale = 0.84089642f;
@@ -166,6 +167,7 @@ namespace OFBSlowMo
                 // Detect if something else changed timeScale
                 if (Mathf.Abs(Time.timeScale - slowMoSpeed.Value) > 0.0001f)
                 {
+                    Logger.LogWarning($"OFBSlowMo: Detected external timeScale change to {Time.timeScale} from {slowMoSpeed.Value}.");
                     flashRed = true;
                     flashTimer = FlashDuration;
                 }
@@ -195,22 +197,66 @@ namespace OFBSlowMo
             hudFontInitialized = true;
             hudFont = null;
 
-            string[] fontNames = fontNamesConfig.Value.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
-            foreach (string rawName in fontNames)
+            if (string.IsNullOrWhiteSpace(fontNamesConfig.Value))
             {
-                string fontName = rawName.Trim();
-                if (string.IsNullOrEmpty(fontName))
+                Logger.LogInfo("OFBSlowMo: FontNames config is empty; using default GUI font.");
+                return;
+            }
+
+            // Get OS-installed font names once and intersect with the configured list.
+            string[] osFonts;
+            try
+            {
+                osFonts = Font.GetOSInstalledFontNames();
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning($"OFBSlowMo: Failed to query OS fonts: {ex.Message}. Falling back to default GUI font.");
+                return;
+            }
+
+            string[] requestedNames = fontNamesConfig.Value.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+            var validNames = new System.Collections.Generic.List<string>();
+
+            foreach (string rawName in requestedNames)
+            {
+                string requested = rawName.Trim();
+                if (string.IsNullOrEmpty(requested))
                     continue;
 
-                try
+                foreach (string osName in osFonts)
                 {
-                    hudFont = Font.CreateDynamicFontFromOSFont(fontName, 48);
-                    if (hudFont != null) break;
+                    if (string.Equals(osName, requested, StringComparison.OrdinalIgnoreCase))
+                    {
+                        validNames.Add(osName);
+                        break;
+                    }
                 }
-                catch
+            }
+
+            if (validNames.Count == 0)
+            {
+                Logger.LogWarning($"OFBSlowMo: None of the FontNames '{fontNamesConfig.Value}' matched OS-installed fonts. Using default GUI font.");
+                return;
+            }
+
+            try
+            {
+                // Let Unity pick from the validated list only.
+                hudFont = Font.CreateDynamicFontFromOSFont(validNames.ToArray(), 48);
+                if (hudFont != null)
                 {
-                    // Ignore and try next font
+                    hudFontName = hudFont.name;
+                    Logger.LogInfo($"OFBSlowMo: Using HUD font '{hudFontName}' from validated list: {string.Join(", ", validNames)}.");
                 }
+                else
+                {
+                    Logger.LogWarning("OFBSlowMo: Font.CreateDynamicFontFromOSFont returned null for validated font list. Using default GUI font.");
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning($"OFBSlowMo: Exception while creating HUD font from validated list: {ex.Message}. Using default GUI font.");
             }
         }
 
@@ -219,6 +265,14 @@ namespace OFBSlowMo
             // Show HUD when slow-mo is active, or when previewing a speed change
             if (isSlowMoActive || previewTimer > 0f)
             {
+                // Save and override GUI state so other mods' GUI settings don't leak into ours
+                int previousDepth = GUI.depth;
+                Matrix4x4 previousMatrix = GUI.matrix;
+
+                // Draw on top of most other GUI and with an identity matrix
+                GUI.depth = -100;
+                GUI.matrix = Matrix4x4.identity;
+
                 // Ensure HUD font resolved once
                 InitializeHudFontIfNeeded();
                 
@@ -265,6 +319,10 @@ namespace OFBSlowMo
                 
                 // Main text
                 GUI.Label(new Rect(x, y, textWidth, textHeight), text, textStyle);
+
+                // Restore previous GUI state
+                GUI.matrix = previousMatrix;
+                GUI.depth = previousDepth;
             }
         }
 
