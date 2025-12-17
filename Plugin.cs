@@ -50,7 +50,14 @@ namespace OFBSlowMo
                 if (Input.GetKeyDown(slowMoKey.Value))
                 {
                     isSlowMoActive = !isSlowMoActive;
-                    ApplySlowMotion();
+                    if (isSlowMoActive)
+                    {
+                        ApplySlowMotion();
+                    }
+                    else
+                    {
+                        RestoreNormalSpeed();
+                    }
                 }
             }
             else
