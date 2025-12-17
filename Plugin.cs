@@ -10,7 +10,9 @@ namespace OFBSlowMo
     {
         private ConfigEntry<KeyCode> slowMoKey = null!;
         private ConfigEntry<float> slowMoSpeed = null!;
-        // toggleMode removed
+        
+        private ConfigEntry<string> speedPresets = null!;
+
         private ConfigEntry<KeyCode> increaseSlowMoKey = null!;
         private ConfigEntry<KeyCode> decreaseSlowMoKey = null!;
         
@@ -22,15 +24,12 @@ namespace OFBSlowMo
         private bool isSlowMoActive = false;
         
         private float previewTimer = 0f;
-        private const float PreviewDuration = 0.5f;
+        private const float PreviewDuration = 1f;
 
         private Font? trajanFont = null;
         private bool trajanSearchAttempted = false;
 
         private float logTimer = 0f;
-
-        // 1 / sqrt(sqrt(2)) ≈ 0.84089642
-        private const float SpeedScale = 0.84089642f;
 
         private void Awake()
         {
@@ -48,24 +47,29 @@ namespace OFBSlowMo
             slowMoSpeed = Config.Bind(
                 "General",
                 "SlowMoSpeed",
-                SpeedScale,
-                "Time scale when slow motion is active (0.1 = 10% speed, 0.5 = 50% speed, etc.)"
+                0.5f,
+                "Current slow motion speed (used to persist state)"
             );
-
-            // toggleMode config removed
+            
+            speedPresets = Config.Bind(
+                "General",
+                "SpeedPresets",
+                "80,65,50",
+                "Comma-separated list of slow motion speeds as percentages (e.g. '80,65,50' means 0.8, 0.65, 0.5)"
+            );
 
             increaseSlowMoKey = Config.Bind(
                 "General",
                 "IncreaseSlowMoKey",
                 KeyCode.Equals,
-                "Key to increase slow motion speed by 10%"
+                "Key to increase slow motion speed (cycles through presets)"
             );
 
             decreaseSlowMoKey = Config.Bind(
                 "General",
                 "DecreaseSlowMoKey",
                 KeyCode.Minus,
-                "Key to decrease slow motion speed by 10%"
+                "Key to decrease slow motion speed (cycles through presets)"
             );
         }
 
@@ -78,36 +82,14 @@ namespace OFBSlowMo
 
         private void HandleInput()
         {
-            // Adjust slow-mo speed with +/- keys (scale by 1/sqrt(2))
+            // Adjust slow-mo speed using presets
             if (Input.GetKeyDown(increaseSlowMoKey.Value))
             {
-                // Increase towards normal speed by dividing by SpeedScale
-                slowMoSpeed.Value = Mathf.Clamp01(slowMoSpeed.Value / SpeedScale);
-
-                // If slow-mo is currently off, briefly preview the new speed
-                if (!isSlowMoActive)
-                {
-                    previewTimer = PreviewDuration;
-                }
-                else
-                {
-                    Logger.LogInfo($"Mod updated target factor: {slowMoSpeed.Value}x");
-                }
+                AdjustSpeed(true);
             }
             else if (Input.GetKeyDown(decreaseSlowMoKey.Value))
             {
-                // Decrease speed (more slow-mo) by multiplying by SpeedScale
-                slowMoSpeed.Value = Mathf.Clamp01(slowMoSpeed.Value * SpeedScale);
-
-                // If slow-mo is currently off, briefly preview the new speed
-                if (!isSlowMoActive)
-                {
-                    previewTimer = PreviewDuration;
-                }
-                else
-                {
-                    Logger.LogInfo($"Mod updated target factor: {slowMoSpeed.Value}x");
-                }
+                AdjustSpeed(false);
             }
 
             if (Input.GetKeyDown(slowMoKey.Value))
@@ -115,6 +97,72 @@ namespace OFBSlowMo
                 isSlowMoActive = !isSlowMoActive;
                 Logger.LogInfo($"Slow-Mo Toggled: {isSlowMoActive}");
             }
+        }
+
+        private void AdjustSpeed(bool increase)
+        {
+            float current = slowMoSpeed.Value;
+            var presets = GetSortedPresets();
+            float? next = null;
+
+            if (increase)
+            {
+                // Find smallest preset strictly greater than current
+                foreach (var p in presets)
+                {
+                    if (p > current + 0.001f)
+                    {
+                        next = p;
+                        break;
+                    }
+                }
+            }
+            else
+            {
+                // Find largest preset strictly less than current (iterate backwards)
+                for (int i = presets.Count - 1; i >= 0; i--)
+                {
+                    if (presets[i] < current - 0.001f)
+                    {
+                        next = presets[i];
+                        break;
+                    }
+                }
+            }
+
+            // If found, update. If not found (we are at limit), do nothing.
+            if (next.HasValue)
+            {
+                slowMoSpeed.Value = next.Value;
+                
+                if (!isSlowMoActive)
+                {
+                    previewTimer = PreviewDuration;
+                }
+                else
+                {
+                    Logger.LogInfo($"Mod updated target factor: {slowMoSpeed.Value}x");
+                }
+            }
+        }
+        
+        private System.Collections.Generic.List<float> GetSortedPresets()
+        {
+            var list = new System.Collections.Generic.List<float>();
+            if (string.IsNullOrEmpty(speedPresets.Value)) return list;
+
+            string[] parts = speedPresets.Value.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+            foreach (var p in parts)
+            {
+                if (int.TryParse(p.Trim(), out int val))
+                {
+                    // Clamp 1-100 just in case
+                    float f = Mathf.Clamp(val, 1, 200) / 100f;
+                    list.Add(f);
+                }
+            }
+            list.Sort();
+            return list;
         }
 
         private void UpdateTimeScale()
@@ -128,7 +176,7 @@ namespace OFBSlowMo
             {
                 // NOTE: Should we log this? It might be spammy if the game interpolates time scale.
                 // useful for debugging:
-                // Logger.LogWarning($"External timeScale change detected: {currentTimeScale} (Previous applied: {lastAppliedTimeScale})");
+                Logger.LogWarning($"External timeScale change detected: {currentTimeScale} (Previous applied: {lastAppliedTimeScale})");
                 gameBaseTimeScale = currentTimeScale;
             }
 
@@ -143,8 +191,8 @@ namespace OFBSlowMo
             if (Mathf.Abs(currentTimeScale - targetTimeScale) > 0.0001f)
             {
                 Time.timeScale = targetTimeScale;
-                lastAppliedTimeScale = targetTimeScale;
             }
+            lastAppliedTimeScale = targetTimeScale;
         }
         
         private void UpdateMetrics()
