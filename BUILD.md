@@ -11,7 +11,21 @@
 
 ## Build Steps
 
-### Option 1: Using dotnet CLI (Recommended)
+### Option 1: Using the Build Script (Easiest)
+
+1. Build and install in one command:
+   ```bash
+   ./build.sh --install
+   ```
+
+2. Or just build without installing:
+   ```bash
+   ./build.sh
+   ```
+
+The script will automatically copy the DLL to `/Applications/Hollow Knight Silksong/BepInEx/plugins/` when using `--install`.
+
+### Option 2: Using dotnet CLI (Manual)
 
 1. Open a terminal in the project directory:
    ```bash

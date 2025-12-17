@@ -91,6 +91,51 @@ namespace OFBSlowMo
             Logger.LogInfo("Normal speed restored");
         }
 
+        private void OnGUI()
+        {
+            if (isSlowMoActive)
+            {
+                // Try to load a fancy font, fallback to default if not available
+                Font? fancyFont = null;
+                string[] fontNames = { "Arial Black", "Impact", "Comic Sans MS", "Trebuchet MS" };
+                foreach (string fontName in fontNames)
+                {
+                    fancyFont = Font.CreateDynamicFontFromOSFont(fontName, 48);
+                    if (fancyFont != null) break;
+                }
+                
+                // Style for the text with shadow effect
+                GUIStyle textStyle = new GUIStyle(GUI.skin.label);
+                textStyle.fontSize = 48;
+                textStyle.fontStyle = FontStyle.Bold;
+                textStyle.normal.textColor = Color.white;
+                textStyle.alignment = TextAnchor.MiddleLeft;
+                if (fancyFont != null)
+                {
+                    textStyle.font = fancyFont;
+                }
+                
+                // Calculate position (lower-left corner with padding)
+                float padding = 30f;
+                float textWidth = 200f;
+                float textHeight = 60f;
+                float x = padding;
+                float y = Screen.height - textHeight - padding;
+                
+                // Draw text with shadow for depth
+                int speedPercent = Mathf.RoundToInt(slowMoSpeed.Value * 100f);
+                string text = $"{speedPercent}%";
+                
+                // Shadow
+                GUIStyle shadowStyle = new GUIStyle(textStyle);
+                shadowStyle.normal.textColor = new Color(0f, 0f, 0f, 0.6f);
+                GUI.Label(new Rect(x + 3, y + 3, textWidth, textHeight), text, shadowStyle);
+                
+                // Main text
+                GUI.Label(new Rect(x, y, textWidth, textHeight), text, textStyle);
+            }
+        }
+
         private void OnDestroy()
         {
             // Restore normal time scale when mod is unloaded
