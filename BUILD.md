@@ -13,17 +13,17 @@
 
 ### Option 1: Using the Build Script (Easiest)
 
-1. Build and install in one command:
-   ```bash
-   ./build.sh --install
-   ```
-
-2. Or just build without installing:
+1. Build only:
    ```bash
    ./build.sh
    ```
 
-The script will automatically copy the DLL to `/Applications/Hollow Knight Silksong/BepInEx/plugins/` when using `--install`.
+2. Build and install:
+   ```bash
+   ./build.sh --install
+   ```
+
+The `--install` flag will copy the DLL to `/Applications/Hollow Knight Silksong/BepInEx/plugins/`.
 
 ### Option 2: Using dotnet CLI (Manual)
 

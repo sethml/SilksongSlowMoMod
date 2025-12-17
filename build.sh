@@ -2,6 +2,7 @@
 
 # Build script for OFBSlowMo
 # Usage: ./build.sh [--install]
+# By default, always installs after building
 
 GAME_PATH="/Applications/Hollow Knight Silksong"
 PLUGIN_NAME="OFBSlowMo.dll"

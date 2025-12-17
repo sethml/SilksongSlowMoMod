@@ -76,6 +76,12 @@ namespace OFBSlowMo
                     RestoreNormalSpeed();
                 }
             }
+            
+            // Continuously enforce timeScale every frame to prevent game from resetting it
+            if (isSlowMoActive)
+            {
+                Time.timeScale = slowMoSpeed.Value;
+            }
         }
 
         private void ApplySlowMotion()
