@@ -14,9 +14,13 @@ namespace OFBSlowMo
         private ConfigEntry<KeyCode> increaseSlowMoKey = null!;
         private ConfigEntry<KeyCode> decreaseSlowMoKey = null!;
         
-        private bool isSlowMoActive = false;
-        private float normalTimeScale = 1.0f;
+        // Tracks the timeScale the game *wants* to run at (e.g. 1.0 normally, 0.0 when paused).
+        private float gameBaseTimeScale = 1.0f;
+        // Tracks the last timeScale we applied, so we can detect external changes.
+        private float lastAppliedTimeScale = 1.0f;
 
+        private bool isSlowMoActive = false;
+        
         private float previewTimer = 0f;
         private const float PreviewDuration = 0.5f;
 
@@ -65,23 +69,15 @@ namespace OFBSlowMo
             );
         }
 
-        // Property to determine if the mod should currently control the time scale.
-        // It is true functionality if we are active AND the game is not trying to pause or run slower than us.
-        private bool IsModInCharge
-        {
-            get
-            {
-                // We use a small epsilon to avoid floating point issues.
-                // If the game's timeScale is significantly lower than our target (e.g. 0), we are NOT in charge.
-                return isSlowMoActive && Time.timeScale >= slowMoSpeed.Value - 0.005f;
-            }
-        }
-
         private void Update()
         {
-            // Capture state BEFORE mutation to avoid regression where increasing speed makes IsModInCharge false
-            bool wasInCharge = IsModInCharge;
+            HandleInput();
+            UpdateTimeScale();
+            UpdateMetrics();
+        }
 
+        private void HandleInput()
+        {
             // Adjust slow-mo speed with +/- keys (scale by 1/sqrt(2))
             if (Input.GetKeyDown(increaseSlowMoKey.Value))
             {
@@ -93,9 +89,9 @@ namespace OFBSlowMo
                 {
                     previewTimer = PreviewDuration;
                 }
-                else if (wasInCharge)
+                else
                 {
-                    ApplySlowMotion();
+                    Logger.LogInfo($"Mod updated target factor: {slowMoSpeed.Value}x");
                 }
             }
             else if (Input.GetKeyDown(decreaseSlowMoKey.Value))
@@ -108,34 +104,51 @@ namespace OFBSlowMo
                 {
                     previewTimer = PreviewDuration;
                 }
-                else if (wasInCharge)
+                else
                 {
-                    ApplySlowMotion();
+                    Logger.LogInfo($"Mod updated target factor: {slowMoSpeed.Value}x");
                 }
             }
 
             if (Input.GetKeyDown(slowMoKey.Value))
             {
                 isSlowMoActive = !isSlowMoActive;
-                
-                // We should apply/restore speed if:
-                // 1. We were already in charge (toggling OFF or changing speed while active)
-                // 2. We just turned ON and the game isn't paused (initial activation)
-                bool shouldApplyImmediately = wasInCharge || (isSlowMoActive && Time.timeScale >= slowMoSpeed.Value - 0.005f);
+                Logger.LogInfo($"Slow-Mo Toggled: {isSlowMoActive}");
+            }
+        }
 
-                if (shouldApplyImmediately)
-                {
-                    if (isSlowMoActive)
-                    {
-                        ApplySlowMotion();
-                    }
-                    else
-                    {
-                        RestoreNormalSpeed();
-                    }
-                }
+        private void UpdateTimeScale()
+        {
+            float currentTimeScale = Time.timeScale;
+
+            // DETECT: If the current timeScale is different from what we last set, 
+            // the game (or another mod) must have changed it. 
+            // We capture this as the new "base" speed.
+            if (Mathf.Abs(currentTimeScale - lastAppliedTimeScale) > 0.0001f)
+            {
+                // NOTE: Should we log this? It might be spammy if the game interpolates time scale.
+                // useful for debugging:
+                // Logger.LogWarning($"External timeScale change detected: {currentTimeScale} (Previous applied: {lastAppliedTimeScale})");
+                gameBaseTimeScale = currentTimeScale;
             }
 
+            // CALCULATE: Desired = Base * Multiplier
+            float multiplier = isSlowMoActive ? slowMoSpeed.Value : 1.0f;
+            float targetTimeScale = gameBaseTimeScale * multiplier;
+
+            // Prevent negative or invalid time scales? Unity handles 0 fine.
+            if (targetTimeScale < 0f) targetTimeScale = 0f;
+
+            // APPLY: If we aren't at the target, set it.
+            if (Mathf.Abs(currentTimeScale - targetTimeScale) > 0.0001f)
+            {
+                Time.timeScale = targetTimeScale;
+                lastAppliedTimeScale = targetTimeScale;
+            }
+        }
+        
+        private void UpdateMetrics()
+        {
             // Preview timer countdown (use unscaled time so it isn't affected by slow-mo)
             if (previewTimer > 0f)
             {
@@ -145,52 +158,14 @@ namespace OFBSlowMo
                     previewTimer = 0f;
                 }
             }
-            
-            // Continuously enforce timeScale every frame to prevent game from resetting it
-            // Only enforce if we are in charge.
-            if (IsModInCharge)
-            {
-                // Only clamp down if the current timeScale is HIGHER than our target.
-                if (Time.timeScale > slowMoSpeed.Value + 0.0001f)
-                {
-                    Logger.LogWarning($"OFBSlowMo: Detected external timeScale change to {Time.timeScale} from {slowMoSpeed.Value}. Clamping down.");
-                    Time.timeScale = slowMoSpeed.Value;
-                }
-            }
 
             // Logging (1Hz)
             logTimer += Time.unscaledDeltaTime;
             if (logTimer >= 1.0f)
             {
                 logTimer = 0f;
-                Logger.LogInfo($"OFBSlowMo: Current timeScale = {Time.timeScale}");
+                Logger.LogInfo($"OFBSlowMo: [Active:{isSlowMoActive}] [Base:{gameBaseTimeScale:F3}] [Mult:{slowMoSpeed.Value:F3}] -> [Actual:{Time.timeScale:F3}]");
             }
-        }
-
-        private void ApplySlowMotion()
-        {
-            // Heuristic fix: if we are ALREADY (approximately) at the slow-mo speed, 
-            // it means we probably just toggled off and on quickly, or something else set it.
-            // In this case, do NOT capture the current timeScale as "normal", because that would lock us in slow-mo.
-            // Default to 1.0f for safety.
-            if (Mathf.Abs(Time.timeScale - slowMoSpeed.Value) < 0.05f)
-            {
-                normalTimeScale = 1.0f;
-                Logger.LogWarning($"OFBSlowMo: Detected current timeScale ({Time.timeScale}) is close to target ({slowMoSpeed.Value}). Defaulting normalTimeScale to 1.0.");
-            }
-            else
-            {
-                normalTimeScale = Time.timeScale;
-            }
-            
-            Time.timeScale = slowMoSpeed.Value;
-            Logger.LogInfo($"Slow motion activated: {slowMoSpeed.Value}x speed");
-        }
-
-        private void RestoreNormalSpeed()
-        {
-            Time.timeScale = normalTimeScale;
-            Logger.LogInfo("Normal speed restored");
         }
 
         private void OnGUI()
