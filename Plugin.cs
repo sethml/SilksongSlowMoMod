@@ -1,3 +1,4 @@
+using System;
 using BepInEx;
 using BepInEx.Configuration;
 using UnityEngine;
@@ -12,6 +13,7 @@ namespace OFBSlowMo
         private ConfigEntry<bool> toggleMode = null!;
         private ConfigEntry<KeyCode> increaseSlowMoKey = null!;
         private ConfigEntry<KeyCode> decreaseSlowMoKey = null!;
+        private ConfigEntry<string> fontNamesConfig = null!;
         
         private bool isSlowMoActive = false;
         private float normalTimeScale = 1.0f;
@@ -19,6 +21,15 @@ namespace OFBSlowMo
         private bool flashRed = false;
         private float flashTimer = 0f;
         private const float FlashDuration = 0.5f;
+
+        private float previewTimer = 0f;
+        private const float PreviewDuration = 0.5f;
+
+        private Font? hudFont = null;
+        private bool hudFontInitialized = false;
+
+        // 1 / sqrt(sqrt(2)) ≈ 0.84089642
+        private const float SpeedScale = 0.84089642f;
 
         private void Awake()
         {
@@ -36,7 +47,7 @@ namespace OFBSlowMo
             slowMoSpeed = Config.Bind(
                 "General",
                 "SlowMoSpeed",
-                0.5f,
+                SpeedScale,
                 "Time scale when slow motion is active (0.1 = 10% speed, 0.5 = 50% speed, etc.)"
             );
 
@@ -60,18 +71,39 @@ namespace OFBSlowMo
                 KeyCode.Minus,
                 "Key to decrease slow motion speed by 10%"
             );
+
+            fontNamesConfig = Config.Bind(
+                "Visual",
+                "FontNames",
+                "BlackChancery, Old English Text MT, GothicE, UnifrakturMaguntia, Hoefler Text, Palatino Linotype, Book Antiqua, Georgia, Times New Roman",
+                "Comma-separated list of font names to try for the HUD text (first available font is used)."
+            );
         }
 
         private void Update()
         {
-            // Adjust slow-mo speed with +/- keys
+            // Adjust slow-mo speed with +/- keys (scale by 1/sqrt(2))
             if (Input.GetKeyDown(increaseSlowMoKey.Value))
             {
-                slowMoSpeed.Value = Mathf.Clamp01(slowMoSpeed.Value + 0.1f);
+                // Increase towards normal speed by dividing by SpeedScale
+                slowMoSpeed.Value = Mathf.Clamp01(slowMoSpeed.Value / SpeedScale);
+
+                // If slow-mo is currently off, briefly preview the new speed
+                if (!isSlowMoActive)
+                {
+                    previewTimer = PreviewDuration;
+                }
             }
             else if (Input.GetKeyDown(decreaseSlowMoKey.Value))
             {
-                slowMoSpeed.Value = Mathf.Clamp01(slowMoSpeed.Value - 0.1f);
+                // Decrease speed (more slow-mo) by multiplying by SpeedScale
+                slowMoSpeed.Value = Mathf.Clamp01(slowMoSpeed.Value * SpeedScale);
+
+                // If slow-mo is currently off, briefly preview the new speed
+                if (!isSlowMoActive)
+                {
+                    previewTimer = PreviewDuration;
+                }
             }
 
             if (toggleMode.Value)
@@ -117,6 +149,16 @@ namespace OFBSlowMo
                     flashTimer = 0f;
                 }
             }
+
+            // Preview timer countdown (use unscaled time so it isn't affected by slow-mo)
+            if (previewTimer > 0f)
+            {
+                previewTimer -= Time.unscaledDeltaTime;
+                if (previewTimer < 0f)
+                {
+                    previewTimer = 0f;
+                }
+            }
             
             // Continuously enforce timeScale every frame to prevent game from resetting it
             if (isSlowMoActive)
@@ -145,28 +187,64 @@ namespace OFBSlowMo
             Logger.LogInfo("Normal speed restored");
         }
 
+        private void InitializeHudFontIfNeeded()
+        {
+            if (hudFontInitialized)
+                return;
+
+            hudFontInitialized = true;
+            hudFont = null;
+
+            string[] fontNames = fontNamesConfig.Value.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+            foreach (string rawName in fontNames)
+            {
+                string fontName = rawName.Trim();
+                if (string.IsNullOrEmpty(fontName))
+                    continue;
+
+                try
+                {
+                    hudFont = Font.CreateDynamicFontFromOSFont(fontName, 48);
+                    if (hudFont != null) break;
+                }
+                catch
+                {
+                    // Ignore and try next font
+                }
+            }
+        }
+
         private void OnGUI()
         {
-            if (isSlowMoActive)
+            // Show HUD when slow-mo is active, or when previewing a speed change
+            if (isSlowMoActive || previewTimer > 0f)
             {
-                // Try to load a fancy font, fallback to default if not available
-                Font? fancyFont = null;
-                string[] fontNames = { "Arial Black", "Impact", "Comic Sans MS", "Trebuchet MS" };
-                foreach (string fontName in fontNames)
-                {
-                    fancyFont = Font.CreateDynamicFontFromOSFont(fontName, 48);
-                    if (fancyFont != null) break;
-                }
+                // Ensure HUD font resolved once
+                InitializeHudFontIfNeeded();
                 
                 // Style for the text with shadow effect
                 GUIStyle textStyle = new GUIStyle(GUI.skin.label);
                 textStyle.fontSize = 48;
                 textStyle.fontStyle = FontStyle.Bold;
-                textStyle.normal.textColor = flashRed ? Color.red : Color.white;
-                textStyle.alignment = TextAnchor.MiddleLeft;
-                if (fancyFont != null)
+
+                // Base color: red/white when active, green fade when previewing
+                Color baseColor;
+                if (isSlowMoActive)
                 {
-                    textStyle.font = fancyFont;
+                    baseColor = flashRed ? Color.red : Color.white;
+                }
+                else
+                {
+                    // Preview color: green, fading out over PreviewDuration
+                    float t = Mathf.Clamp01(previewTimer / PreviewDuration);
+                    baseColor = new Color(0f, 1f, 0f, t);
+                }
+
+                textStyle.normal.textColor = baseColor;
+                textStyle.alignment = TextAnchor.MiddleLeft;
+                if (hudFont != null)
+                {
+                    textStyle.font = hudFont;
                 }
                 
                 // Calculate position (lower-left corner with padding)
@@ -180,9 +258,9 @@ namespace OFBSlowMo
                 int speedPercent = Mathf.RoundToInt(slowMoSpeed.Value * 100f);
                 string text = $"{speedPercent}%";
                 
-                // Shadow
+                // Shadow (respect alpha so fade looks nice)
                 GUIStyle shadowStyle = new GUIStyle(textStyle);
-                shadowStyle.normal.textColor = new Color(0f, 0f, 0f, 0.6f);
+                shadowStyle.normal.textColor = new Color(0f, 0f, 0f, 0.6f * baseColor.a);
                 GUI.Label(new Rect(x + 3, y + 3, textWidth, textHeight), text, shadowStyle);
                 
                 // Main text
