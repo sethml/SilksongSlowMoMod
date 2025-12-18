@@ -268,9 +268,16 @@ namespace OFBSlowMo
                     }
                 }
                 
-                // Style for the text with shadow effect
+                // Calculate relative sizes based on screen height (3.5% font size)
+                float screenHeight = Screen.height;
+                int fontSize = Mathf.RoundToInt(screenHeight * 0.035f);
+                float padding = screenHeight * 0.03f;
+                // Ensure reasonable text box size
+                float textWidth = fontSize * 4f; 
+                float textHeight = fontSize * 1.5f;
+
                 GUIStyle textStyle = new GUIStyle(GUI.skin.label);
-                textStyle.fontSize = 48;
+                textStyle.fontSize = fontSize;
                 textStyle.fontStyle = FontStyle.Bold;
 
                 // Base color: white when active, green fade when previewing
@@ -294,11 +301,8 @@ namespace OFBSlowMo
                 }
                 
                 // Calculate position (lower-left corner with padding)
-                float padding = 30f;
-                float textWidth = 200f;
-                float textHeight = 60f;
                 float x = padding;
-                float y = Screen.height - textHeight - padding;
+                float y = screenHeight - textHeight - padding;
                 
                 // Draw text with shadow for depth
                 int speedPercent = Mathf.RoundToInt(slowMoSpeed.Value * 100f);
@@ -307,7 +311,9 @@ namespace OFBSlowMo
                 // Shadow (respect alpha so fade looks nice)
                 GUIStyle shadowStyle = new GUIStyle(textStyle);
                 shadowStyle.normal.textColor = new Color(0f, 0f, 0f, 0.6f * baseColor.a);
-                GUI.Label(new Rect(x + 3, y + 3, textWidth, textHeight), text, shadowStyle);
+                // Shadow offset relative to font size
+                float shadowOffset = fontSize * 0.06f; 
+                GUI.Label(new Rect(x + shadowOffset, y + shadowOffset, textWidth, textHeight), text, shadowStyle);
                 
                 // Main text
                 GUI.Label(new Rect(x, y, textWidth, textHeight), text, textStyle);
