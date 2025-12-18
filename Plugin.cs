@@ -138,8 +138,8 @@ namespace SlowMo {
             string[] parts = speedPresets.Value.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
             foreach (var p in parts) {
                 if (float.TryParse(p.Trim(), out float val)) {
-                    // Clamp 1-100 just in case
-                    float v = Mathf.Clamp(val, 1f, 100f);
+                    // No upper limit, just ensure it's non-negative
+                    float v = Mathf.Max(val, 0f);
                     list.Add(v);
                 }
             }

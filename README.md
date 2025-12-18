@@ -8,6 +8,7 @@ Perfect for grandpas and other older folks whose fast-twitch reflexes have long 
 
 - **Toggle Slow-Mo**: Instantly slow down time to help with difficult platforming or combat.
 - **Adjustable Speed**: Cycle through speed presets (e.g., 80%, 65%, 50%) on the fly.
+    - *Expert Mode*: You can also set speeds > 100% (e.g., 150%) to challenge yourself!
 - **Pause Compatible**: Safely interacts with game pauses and cutscenes.
 - **Configurable**: Customize keybindings, default speed, and speed presets via configuration.
 
