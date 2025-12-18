@@ -83,17 +83,13 @@ namespace OFBSlowMo
         private void HandleInput()
         {
             // Adjust slow-mo speed using presets
-            if (Input.GetKeyDown(increaseSlowMoKey.Value))
-            {
+            if (Input.GetKeyDown(increaseSlowMoKey.Value)) {
                 AdjustSpeed(true);
-            }
-            else if (Input.GetKeyDown(decreaseSlowMoKey.Value))
-            {
+            } else if (Input.GetKeyDown(decreaseSlowMoKey.Value)) {
                 AdjustSpeed(false);
             }
 
-            if (Input.GetKeyDown(slowMoKey.Value))
-            {
+            if (Input.GetKeyDown(slowMoKey.Value)) {
                 isSlowMoActive = !isSlowMoActive;
                 Logger.LogInfo($"Slow-Mo Toggled: {isSlowMoActive}");
             }
@@ -105,25 +101,18 @@ namespace OFBSlowMo
             var presets = GetSortedPresets();
             float? next = null;
 
-            if (increase)
-            {
+            if (increase) {
                 // Find smallest preset strictly greater than current
-                foreach (var p in presets)
-                {
-                    if (p > current + 0.001f)
-                    {
+                foreach (var p in presets) {
+                    if (p > current + 0.001f) {
                         next = p;
                         break;
                     }
                 }
-            }
-            else
-            {
+            } else {
                 // Find largest preset strictly less than current (iterate backwards)
-                for (int i = presets.Count - 1; i >= 0; i--)
-                {
-                    if (presets[i] < current - 0.001f)
-                    {
+                for (int i = presets.Count - 1; i >= 0; i--) {
+                    if (presets[i] < current - 0.001f) {
                         next = presets[i];
                         break;
                     }
@@ -131,16 +120,12 @@ namespace OFBSlowMo
             }
 
             // If found, update. If not found (we are at limit), do nothing.
-            if (next.HasValue)
-            {
+            if (next.HasValue) {
                 slowMoSpeed.Value = next.Value;
                 
-                if (!isSlowMoActive)
-                {
+                if (!isSlowMoActive) {
                     previewTimer = PreviewDuration;
-                }
-                else
-                {
+                } else {
                     Logger.LogInfo($"Mod updated target factor: {slowMoSpeed.Value}x");
                 }
             }
@@ -149,13 +134,13 @@ namespace OFBSlowMo
         private System.Collections.Generic.List<float> GetSortedPresets()
         {
             var list = new System.Collections.Generic.List<float>();
-            if (string.IsNullOrEmpty(speedPresets.Value)) return list;
+            if (string.IsNullOrEmpty(speedPresets.Value)) {
+                return list;
+            }
 
             string[] parts = speedPresets.Value.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
-            foreach (var p in parts)
-            {
-                if (int.TryParse(p.Trim(), out int val))
-                {
+            foreach (var p in parts) {
+                if (int.TryParse(p.Trim(), out int val)) {
                     // Clamp 1-100 just in case
                     float f = Mathf.Clamp(val, 1, 200) / 100f;
                     list.Add(f);
@@ -172,8 +157,7 @@ namespace OFBSlowMo
             // DETECT: If the current timeScale is different from what we last set, 
             // the game (or another mod) must have changed it. 
             // We capture this as the new "base" speed.
-            if (Mathf.Abs(currentTimeScale - lastAppliedTimeScale) > 0.0001f)
-            {
+            if (Mathf.Abs(currentTimeScale - lastAppliedTimeScale) > 0.0001f) {
                 // NOTE: Should we log this? It might be spammy if the game interpolates time scale.
                 // useful for debugging:
                 Logger.LogWarning($"External timeScale change detected: {currentTimeScale} (Previous applied: {lastAppliedTimeScale})");
@@ -185,11 +169,12 @@ namespace OFBSlowMo
             float targetTimeScale = gameBaseTimeScale * multiplier;
 
             // Prevent negative or invalid time scales? Unity handles 0 fine.
-            if (targetTimeScale < 0f) targetTimeScale = 0f;
+            if (targetTimeScale < 0f) {
+                targetTimeScale = 0f;
+            }
 
             // APPLY: If we aren't at the target, set it.
-            if (Mathf.Abs(currentTimeScale - targetTimeScale) > 0.0001f)
-            {
+            if (Mathf.Abs(currentTimeScale - targetTimeScale) > 0.0001f) {
                 Time.timeScale = targetTimeScale;
             }
             lastAppliedTimeScale = targetTimeScale;
@@ -198,19 +183,16 @@ namespace OFBSlowMo
         private void UpdateMetrics()
         {
             // Preview timer countdown (use unscaled time so it isn't affected by slow-mo)
-            if (previewTimer > 0f)
-            {
+            if (previewTimer > 0f) {
                 previewTimer -= Time.unscaledDeltaTime;
-                if (previewTimer < 0f)
-                {
+                if (previewTimer < 0f) {
                     previewTimer = 0f;
                 }
             }
 
             // Logging (1Hz)
             logTimer += Time.unscaledDeltaTime;
-            if (logTimer >= 1.0f)
-            {
+            if (logTimer >= 1.0f) {
                 logTimer = 0f;
                 Logger.LogInfo($"OFBSlowMo: [Active:{isSlowMoActive}] [Base:{gameBaseTimeScale:F3}] [Mult:{slowMoSpeed.Value:F3}] -> [Actual:{Time.timeScale:F3}]");
             }
@@ -219,8 +201,7 @@ namespace OFBSlowMo
         private void OnGUI()
         {
             // Show HUD when slow-mo is active, or when previewing a speed change
-            if (isSlowMoActive || previewTimer > 0f)
-            {
+            if (isSlowMoActive || previewTimer > 0f) {
                 // Save and override GUI state so other mods' GUI settings don't leak into ours
                 int previousDepth = GUI.depth;
                 Matrix4x4 previousMatrix = GUI.matrix;
@@ -230,8 +211,7 @@ namespace OFBSlowMo
                 GUI.matrix = Matrix4x4.identity;
 
                 // Try to find Trajan font if we haven't found it yet
-                if (trajanFont == null && !trajanSearchAttempted)
-                {
+                if (trajanFont == null && !trajanSearchAttempted) {
                     trajanSearchAttempted = true;
                     // Look for loaded fonts named "Trajan..."
                     // We use FindObjectsOfTypeAll to catch assets even if they aren't currently active in the scene,
@@ -239,31 +219,24 @@ namespace OFBSlowMo
                     var fonts = Resources.FindObjectsOfTypeAll<Font>();
                     Font? bestCandidate = null;
 
-                    foreach (var f in fonts)
-                    {
-                        if (f.name.IndexOf("Trajan", StringComparison.OrdinalIgnoreCase) >= 0)
-                        {
+                    foreach (var f in fonts) {
+                        if (f.name.IndexOf("Trajan", StringComparison.OrdinalIgnoreCase) >= 0) {
                             // If we haven't found a candidate yet, take this one
-                            if (bestCandidate == null)
-                            {
+                            if (bestCandidate == null) {
                                 bestCandidate = f;
                             }
                             // If this new one is NOT bold and the current best IS bold, switch to this one
                             else if (bestCandidate.name.IndexOf("Bold", StringComparison.OrdinalIgnoreCase) >= 0 
-                                     && f.name.IndexOf("Bold", StringComparison.OrdinalIgnoreCase) < 0)
-                            {
+                                     && f.name.IndexOf("Bold", StringComparison.OrdinalIgnoreCase) < 0) {
                                 bestCandidate = f;
                             }
                         }
                     }
 
-                    if (bestCandidate != null)
-                    {
+                    if (bestCandidate != null) {
                         trajanFont = bestCandidate;
                         Logger.LogInfo($"OFBSlowMo: Found Trajan font: {trajanFont.name}");
-                    }
-                    else
-                    {
+                    } else {
                         Logger.LogWarning("OFBSlowMo: Could not find any font named 'Trajan' in Resources. Using default font.");
                     }
                 }
@@ -282,12 +255,9 @@ namespace OFBSlowMo
 
                 // Base color: white when active, green fade when previewing
                 Color baseColor;
-                if (isSlowMoActive)
-                {
+                if (isSlowMoActive) {
                     baseColor = Color.white;
-                }
-                else
-                {
+                } else {
                     // Preview color: green, fading out over PreviewDuration
                     float t = Mathf.Clamp01(previewTimer / PreviewDuration);
                     baseColor = new Color(0f, 1f, 0f, t);
@@ -295,8 +265,7 @@ namespace OFBSlowMo
 
                 textStyle.normal.textColor = baseColor;
                 textStyle.alignment = TextAnchor.MiddleLeft;
-                if (trajanFont != null)
-                {
+                if (trajanFont != null) {
                     textStyle.font = trajanFont;
                 }
                 
@@ -327,11 +296,9 @@ namespace OFBSlowMo
         private void OnDestroy()
         {
             // Restore normal time scale when mod is unloaded
-            if (Time.timeScale != 1.0f)
-            {
+            if (Time.timeScale != 1.0f) {
                 Time.timeScale = 1.0f;
             }
         }
     }
 }
-
