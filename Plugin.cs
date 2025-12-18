@@ -3,11 +3,9 @@ using BepInEx;
 using BepInEx.Configuration;
 using UnityEngine;
 
-namespace OFBSlowMo
-{
+namespace SlowMo {
     [BepInPlugin(PluginInfo.PLUGIN_GUID, PluginInfo.PLUGIN_NAME, PluginInfo.PLUGIN_VERSION)]
-    public class Plugin : BaseUnityPlugin
-    {
+    public class Plugin : BaseUnityPlugin {
         private ConfigEntry<KeyCode> slowMoKey = null!;
         private ConfigEntry<float> slowMoSpeed = null!;
         
@@ -31,8 +29,7 @@ namespace OFBSlowMo
 
         private float logTimer = 0f;
 
-        private void Awake()
-        {
+        private void Awake() {
             // Plugin startup logic
             Logger.LogInfo($"Plugin {PluginInfo.PLUGIN_GUID} is loaded!");
 
@@ -44,44 +41,46 @@ namespace OFBSlowMo
                 "Key to press to activate slow motion"
             );
 
-            slowMoSpeed = Config.Bind(
-                "General",
-                "SlowMoSpeed",
-                0.5f,
-                "Current slow motion speed (used to persist state)"
-            );
-            
-            speedPresets = Config.Bind(
-                "General",
-                "SpeedPresets",
-                "80,65,50",
-                "Comma-separated list of slow motion speeds as percentages (e.g. '80,65,50' means 0.8, 0.65, 0.5)"
-            );
-
             increaseSlowMoKey = Config.Bind(
                 "General",
                 "IncreaseSlowMoKey",
                 KeyCode.Equals,
                 "Key to increase slow motion speed (cycles through presets)"
             );
-
+            
             decreaseSlowMoKey = Config.Bind(
                 "General",
                 "DecreaseSlowMoKey",
                 KeyCode.Minus,
                 "Key to decrease slow motion speed (cycles through presets)"
             );
+
+            speedPresets = Config.Bind(
+                "General",
+                "SpeedPresets",
+                "80,65,50",
+                "Comma-separated list of slow motion speeds as percentages"
+            );
+
+            slowMoSpeed = Config.Bind(
+                "General",
+                "SlowMoSpeed",
+                80f,
+                new ConfigDescription(
+                    "Current slow motion speed percentage (0-100).",
+                    null,
+                    new ConfigurationManagerAttributes { IsAdvanced = true }
+                )
+            );
         }
 
-        private void Update()
-        {
+        private void Update() {
             HandleInput();
             UpdateTimeScale();
             UpdateMetrics();
         }
 
-        private void HandleInput()
-        {
+        private void HandleInput() {
             // Adjust slow-mo speed using presets
             if (Input.GetKeyDown(increaseSlowMoKey.Value)) {
                 AdjustSpeed(true);
@@ -95,8 +94,7 @@ namespace OFBSlowMo
             }
         }
 
-        private void AdjustSpeed(bool increase)
-        {
+        private void AdjustSpeed(bool increase) {
             float current = slowMoSpeed.Value;
             var presets = GetSortedPresets();
             float? next = null;
@@ -126,13 +124,12 @@ namespace OFBSlowMo
                 if (!isSlowMoActive) {
                     previewTimer = PreviewDuration;
                 } else {
-                    Logger.LogInfo($"Mod updated target factor: {slowMoSpeed.Value}x");
+                    Logger.LogInfo($"Mod updated target factor: {slowMoSpeed.Value:F1}%");
                 }
             }
         }
         
-        private System.Collections.Generic.List<float> GetSortedPresets()
-        {
+        private System.Collections.Generic.List<float> GetSortedPresets() {
             var list = new System.Collections.Generic.List<float>();
             if (string.IsNullOrEmpty(speedPresets.Value)) {
                 return list;
@@ -140,18 +137,17 @@ namespace OFBSlowMo
 
             string[] parts = speedPresets.Value.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
             foreach (var p in parts) {
-                if (int.TryParse(p.Trim(), out int val)) {
+                if (float.TryParse(p.Trim(), out float val)) {
                     // Clamp 1-100 just in case
-                    float f = Mathf.Clamp(val, 1, 200) / 100f;
-                    list.Add(f);
+                    float v = Mathf.Clamp(val, 1f, 100f);
+                    list.Add(v);
                 }
             }
             list.Sort();
             return list;
         }
 
-        private void UpdateTimeScale()
-        {
+        private void UpdateTimeScale() {
             float currentTimeScale = Time.timeScale;
 
             // DETECT: If the current timeScale is different from what we last set, 
@@ -165,7 +161,7 @@ namespace OFBSlowMo
             }
 
             // CALCULATE: Desired = Base * Multiplier
-            float multiplier = isSlowMoActive ? slowMoSpeed.Value : 1.0f;
+            float multiplier = isSlowMoActive ? (slowMoSpeed.Value / 100f) : 1.0f;
             float targetTimeScale = gameBaseTimeScale * multiplier;
 
             // Prevent negative or invalid time scales? Unity handles 0 fine.
@@ -180,8 +176,7 @@ namespace OFBSlowMo
             lastAppliedTimeScale = targetTimeScale;
         }
         
-        private void UpdateMetrics()
-        {
+        private void UpdateMetrics() {
             // Preview timer countdown (use unscaled time so it isn't affected by slow-mo)
             if (previewTimer > 0f) {
                 previewTimer -= Time.unscaledDeltaTime;
@@ -194,12 +189,11 @@ namespace OFBSlowMo
             logTimer += Time.unscaledDeltaTime;
             if (logTimer >= 1.0f) {
                 logTimer = 0f;
-                Logger.LogInfo($"OFBSlowMo: [Active:{isSlowMoActive}] [Base:{gameBaseTimeScale:F3}] [Mult:{slowMoSpeed.Value:F3}] -> [Actual:{Time.timeScale:F3}]");
+                Logger.LogInfo($"SlowMo: [Active:{isSlowMoActive}] [Base:{gameBaseTimeScale:F3}] [Mult:{slowMoSpeed.Value:F1}%] -> [Actual:{Time.timeScale:F3}]");
             }
         }
 
-        private void OnGUI()
-        {
+        private void OnGUI() {
             // Show HUD when slow-mo is active, or when previewing a speed change
             if (isSlowMoActive || previewTimer > 0f) {
                 // Save and override GUI state so other mods' GUI settings don't leak into ours
@@ -235,9 +229,9 @@ namespace OFBSlowMo
 
                     if (bestCandidate != null) {
                         trajanFont = bestCandidate;
-                        Logger.LogInfo($"OFBSlowMo: Found Trajan font: {trajanFont.name}");
+                        Logger.LogInfo($"SlowMo: Found Trajan font: {trajanFont.name}");
                     } else {
-                        Logger.LogWarning("OFBSlowMo: Could not find any font named 'Trajan' in Resources. Using default font.");
+                        Logger.LogWarning("SlowMo: Could not find any font named 'Trajan' in Resources. Using default font.");
                     }
                 }
                 
@@ -274,8 +268,10 @@ namespace OFBSlowMo
                 float y = screenHeight - textHeight - padding;
                 
                 // Draw text with shadow for depth
-                int speedPercent = Mathf.RoundToInt(slowMoSpeed.Value * 100f);
-                string text = $"{speedPercent}%";
+                string text = $"{slowMoSpeed.Value:F0}%";
+                if (slowMoSpeed.Value % 1 != 0) {
+                     text = $"{slowMoSpeed.Value:F1}%";
+                }
                 
                 // Shadow (respect alpha so fade looks nice)
                 GUIStyle shadowStyle = new GUIStyle(textStyle);
@@ -293,12 +289,24 @@ namespace OFBSlowMo
             }
         }
 
-        private void OnDestroy()
-        {
+        private void OnDestroy() {
             // Restore normal time scale when mod is unloaded
             if (Time.timeScale != 1.0f) {
                 Time.timeScale = 1.0f;
             }
         }
+    }
+
+    // Helper class to enable "Advanced" settings in ConfigurationManager
+    internal sealed class ConfigurationManagerAttributes 
+    {
+        public bool? ShowRangeAsPercent;
+        public System.Action<BepInEx.Configuration.ConfigEntryBase>? CustomDrawer;
+        public bool? ReadOnly;
+        public bool? IsAdvanced;
+        public int? Order;
+        public string? Category;
+        public string? Description;
+        public string? DispName;
     }
 }

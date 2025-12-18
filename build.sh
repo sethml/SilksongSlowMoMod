@@ -1,23 +1,23 @@
 #!/bin/bash
 
-# Build script for OFBSlowMo
+# Build script for SlowMo
 # Usage: ./build.sh [--install]
 # By default, always installs after building
 
 GAME_PATH="/Applications/Hollow Knight Silksong"
-PLUGIN_NAME="OFBSlowMo.dll"
+PLUGIN_NAME="SlowMo.dll"
 PLUGINS_DIR="$GAME_PATH/BepInEx/plugins"
 
 # Colors for output
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-echo "Building OFBSlowMo..."
+echo "Building SlowMo..."
 
 # Build the project
-dotnet build
+dotnet build -c Debug
 
 if [ $? -ne 0 ]; then
     echo -e "${RED}Build failed!${NC}"

@@ -1,4 +1,4 @@
-# Building OFBSlowMo
+# Building SlowMo
 
 ## Prerequisites
 
@@ -29,7 +29,7 @@ The `--install` flag will copy the DLL to `/Applications/Hollow Knight Silksong/
 
 1. Open a terminal in the project directory:
    ```bash
-   cd /Users/sethml/src/OFBSlowMo
+   cd /Users/sethml/src/SlowMo
    ```
 
 2. Restore NuGet packages:
@@ -42,20 +42,20 @@ The `--install` flag will copy the DLL to `/Applications/Hollow Knight Silksong/
    dotnet build
    ```
 
-4. The compiled DLL will be in: `bin/Debug/OFBSlowMo.dll`
+4. The compiled DLL will be in: `bin/Debug/SlowMo.dll`
 
 ### Option 2: Using Visual Studio / Rider / VS Code
 
-1. Open the `OFBSlowMo.csproj` file in your IDE
+1. Open the `SlowMo.csproj` file in your IDE
 2. Restore packages (usually automatic)
 3. Build the project (F6 in Visual Studio, Ctrl+Shift+B in VS Code)
-4. The DLL will be in `bin/Debug/OFBSlowMo.dll`
+4. The DLL will be in `bin/Debug/SlowMo.dll`
 
 ## Installing the Mod
 
-1. Copy `bin/Debug/OFBSlowMo.dll` to your game's BepInEx plugins folder:
+1. Copy `bin/Debug/SlowMo.dll` to your game's BepInEx plugins folder:
    ```
-   Hollow Knight Silksong/BepInEx/plugins/OFBSlowMo.dll
+   Hollow Knight Silksong/BepInEx/plugins/SlowMo.dll
    ```
 
 2. Launch the game - the mod should load automatically

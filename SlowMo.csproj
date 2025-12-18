@@ -7,8 +7,8 @@
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <OutputPath>bin\$(Configuration)\</OutputPath>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
-    <BepInExPluginGuid>com.ofb.slowmo</BepInExPluginGuid>
-    <BepInExPluginName>OFBSlowMo</BepInExPluginName>
+    <BepInExPluginGuid>com.slowmo</BepInExPluginGuid>
+    <BepInExPluginName>SlowMo</BepInExPluginName>
     <BepInExPluginVersion>1.0.0</BepInExPluginVersion>
   </PropertyGroup>
 
