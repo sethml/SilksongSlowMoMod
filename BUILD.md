@@ -29,7 +29,7 @@ The `--install` flag will copy the DLL to `/Applications/Hollow Knight Silksong/
 
 1. Open a terminal in the project directory:
    ```bash
-   cd /Users/sethml/src/SlowMo
+   cd SlowMo
    ```
 
 2. Restore NuGet packages:
