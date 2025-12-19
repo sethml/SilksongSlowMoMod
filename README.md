@@ -2,7 +2,7 @@
 
 A simple, configurable slow-motion mod for *Hollow Knight: Silksong*.
 
-Perfect for grandpas and other older folks whose fast-twitch reflexes have long since departed, allowing you to play like the youths.
+Perfect for grandpas, grandmas, and other older folks whose fast-twitch reflexes have long since departed, allowing you to play like the youths. Also allows fast-mo modes for god gamers for whom the game is just too easy.
 
 ## Features
 
