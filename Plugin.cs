@@ -298,6 +298,7 @@ namespace SlowMo {
     }
 
     // Helper class to enable "Advanced" settings in ConfigurationManager
+#pragma warning disable CS0649
     internal sealed class ConfigurationManagerAttributes 
     {
         public bool? ShowRangeAsPercent;
@@ -309,4 +310,5 @@ namespace SlowMo {
         public string? Description;
         public string? DispName;
     }
+#pragma warning restore CS0649
 }
